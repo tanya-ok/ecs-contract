@@ -89,7 +89,7 @@ def test_extra_reserved_name(contract: Contract) -> None:
     assert "reserved name" in only(contract({"IMAGE_TAG": "x"}, reserved=["IMAGE_TAG"]))
 
 
-@pytest.mark.parametrize("name", ["DB_PASSWORD", "GITHUB_TOKEN", "STRIPE_API_KEY", "SECRET"])
+@pytest.mark.parametrize("name", ["DB_PASSWORD", "SOME_TOKEN", "SOME_API_KEY", "SECRET"])
 def test_secret_shaped_parameter(contract: Contract, name: str) -> None:
     assert "looks like a secret" in only(contract({name: "x"}))
 

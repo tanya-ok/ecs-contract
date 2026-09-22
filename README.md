@@ -85,7 +85,7 @@ Every problem is one line naming the file, the environment and the key. All prob
 not only the first. Values are never printed.
 
 ```text
-ecs/parameters.json: production: STRIPE_API_KEY: looks like a secret but is declared as a parameter; move it to the secrets file, or allow it explicitly with --allow-secret-shaped
+ecs/parameters.json: production: SOME_API_KEY: looks like a secret but is declared as a parameter; move it to the secrets file, or allow it explicitly with --allow-secret-shaped
 ecs/secrets.json: production: DB_PASSWORD: names no source; expected exactly one of pointer, parameter, vault (no default)
 ecsc: 2 problems
 ```
