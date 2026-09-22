@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/tanya-ok/ecs-contract/main/src/ecs_contract/schema/parameters.schema.json",
+  "title": "ecs-contract parameters",
+  "description": "Plain configuration the application owns, per environment. Becomes task definition environment.",
+  "type": "object",
+  "required": ["environments"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "environments": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["parameters"],
+        "additionalProperties": false,
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+name: ecs-contract check
+description: Check an ECS config contract, the parameters and secrets files, with no credentials and no network.
+author: tanya-ok
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  parameters-file:
+    description: Path to the parameters file.
+    required: true
+  secrets-file:
+    description: Path to the secrets file.
+    required: true
+  environment:
+    description: Space-separated environments to check. Empty checks every declared environment.
+    required: false
+    default: ""
+  reserved:
+    description: Space-separated extra names the deploy workflow sets itself.
+    required: false
+    default: ""
+  allow-secret-shaped:
+    description: Space-separated parameters whose names look like secrets but are not.
+    required: false
+    default: ""
+  format:
+    description: github prints workflow annotations, text prints plain lines.
+    required: false
+    default: github
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      with:
+        enable-cache: false
+    - shell: bash
+      env:
+        ECSC_PARAMETERS: ${{ inputs.parameters-file }}
+        ECSC_SECRETS: ${{ inputs.secrets-file }}
+        ECSC_ENVIRONMENT: ${{ inputs.environment }}
+        ECSC_RESERVED: ${{ inputs.reserved }}
+        ECSC_ALLOW: ${{ inputs.allow-secret-shaped }}
+        ECSC_FORMAT: ${{ inputs.format }}
+      run: |
+        set -euo pipefail -f
+        args=(check --parameters "$ECSC_PARAMETERS" --secrets "$ECSC_SECRETS" --format "$ECSC_FORMAT")
+        for name in $ECSC_ENVIRONMENT; do args+=(--environment "$name"); done
+        for name in $ECSC_RESERVED; do args+=(--reserved "$name"); done
+        for name in $ECSC_ALLOW; do args+=(--allow-secret-shaped "$name"); done
+        uvx --quiet --from "$GITHUB_ACTION_PATH" ecsc "${args[@]}"

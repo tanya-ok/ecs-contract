@@ -1,0 +1,54 @@
+# Reusable workflow: the contract check as a job, for callers that prefer a job to a step.
+name: contract-check
+
+on:
+  workflow_call:
+    inputs:
+      parameters-file:
+        type: string
+        required: true
+      secrets-file:
+        type: string
+        required: true
+      environment:
+        type: string
+        default: ""
+      reserved:
+        type: string
+        default: ""
+      allow-secret-shaped:
+        type: string
+        default: ""
+      ecs-contract-ref:
+        description: Ref of ecs-contract to run. Pin a commit SHA for production callers.
+        type: string
+        default: v1
+      runs-on:
+        type: string
+        default: ubuntu-24.04
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ecs-contract check
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tanya-ok/ecs-contract
+          ref: ${{ inputs.ecs-contract-ref }}
+          path: .ecs-contract
+          persist-credentials: false
+      - uses: ./.ecs-contract
+        with:
+          parameters-file: ${{ inputs.parameters-file }}
+          secrets-file: ${{ inputs.secrets-file }}
+          environment: ${{ inputs.environment }}
+          reserved: ${{ inputs.reserved }}
+          allow-secret-shaped: ${{ inputs.allow-secret-shaped }}

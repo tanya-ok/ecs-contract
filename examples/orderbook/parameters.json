@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tanya-ok/ecs-contract/main/src/ecs_contract/schema/parameters.schema.json",
+  "environments": {
+    "development": {
+      "parameters": {
+        "LOG_LEVEL": "debug",
+        "PORT": "8080",
+        "MATCHING_MODE": "price-time",
+        "ORDER_BOOK_DEPTH": "50"
+      }
+    },
+    "production": {
+      "parameters": {
+        "LOG_LEVEL": "info",
+        "PORT": "8080",
+        "MATCHING_MODE": "price-time",
+        "ORDER_BOOK_DEPTH": "200"
+      }
+    }
+  }
+}

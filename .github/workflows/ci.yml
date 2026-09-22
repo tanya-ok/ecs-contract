@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --locked
+      - run: uv run ruff check --output-format github
+      - run: uv run ruff format --check
+      - run: uv run mypy
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --locked --python ${{ matrix.python }}
+      - run: uv run --python ${{ matrix.python }} pytest
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv build
+      - name: Execute the built wheel, not only the source
+        run: |
+          wheel=$(ls dist/*.whl)
+          uvx --from "$wheel" ecsc --version
+          uvx --from "$wheel" ecsc check \
+            --parameters examples/orderbook/parameters.json \
+            --secrets examples/orderbook/secrets.json
+      - name: Scan built artifacts for identifiers
+        run: |
+          mkdir -p unpacked
+          tar -xzf dist/*.tar.gz -C unpacked
+          python3 -m zipfile -e dist/*.whl unpacked/wheel
+          if grep -rEn --exclude=test_no_identifiers.py 'arn[:]aws(-[a-z]+)*[:]|\b[0-9]{12}\b|[.]internal\b' unpacked; then
+            exit 1
+          fi
+
+  action:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: A valid contract passes
+        uses: ./
+        with:
+          parameters-file: examples/orderbook/parameters.json
+          secrets-file: examples/orderbook/secrets.json
+          reserved: APP_ENV IMAGE_TAG
+      - name: A broken contract fails
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          parameters-file: tests/fixtures/broken/parameters.json
+          secrets-file: tests/fixtures/broken/secrets.json
+          format: text
+      - name: Assert the broken contract failed
+        env:
+          OUTCOME: ${{ steps.broken.outcome }}
+        run: test "$OUTCOME" = failure
+
+  reusable-workflow:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/contract-check.yml
+    with:
+      parameters-file: examples/orderbook/parameters.json
+      secrets-file: examples/orderbook/secrets.json
+      ecs-contract-ref: ${{ github.sha }}

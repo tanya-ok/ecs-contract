@@ -1,0 +1,14 @@
+{
+  "environments": {
+    "development": {
+      "parameters": {
+        "LOG_LEVEL": "debug",
+        "CACHE_URL": "redis://cache.orderbook.example:6379",
+        "SIGNING_SECRET": "change-me",
+        "AWS_PROFILE": "default",
+        "PORT": 8080,
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
