@@ -22,7 +22,7 @@ on:
       ecs-contract-ref:
         description: Ref of ecs-contract to run. Pin a commit SHA for production callers.
         type: string
-        default: v1
+        default: v0
       runs-on:
         type: string
         default: ubuntu-24.04

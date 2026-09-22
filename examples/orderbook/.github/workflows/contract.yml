@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: tanya-ok/ecs-contract@v1 # zizmor: ignore[unpinned-uses] pin a commit SHA in real callers
+      - uses: tanya-ok/ecs-contract@v0 # zizmor: ignore[unpinned-uses] pin a commit SHA in real callers
         with:
           parameters-file: ecs/parameters.json
           secrets-file: ecs/secrets.json

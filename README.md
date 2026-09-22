@@ -109,7 +109,7 @@ Exit codes: `0` the contract holds, `1` it does not, `2` a file cannot be read.
 As a step:
 
 ```yaml
-- uses: tanya-ok/ecs-contract@v1
+- uses: tanya-ok/ecs-contract@v0
   with:
     parameters-file: ecs/parameters.json
     secrets-file: ecs/secrets.json
@@ -121,7 +121,7 @@ Or as a reusable workflow:
 ```yaml
 jobs:
   contract:
-    uses: tanya-ok/ecs-contract/.github/workflows/contract-check.yml@v1
+    uses: tanya-ok/ecs-contract/.github/workflows/contract-check.yml@v0
     with:
       parameters-file: ecs/parameters.json
       secrets-file: ecs/secrets.json
@@ -129,6 +129,9 @@ jobs:
 
 Problems appear as annotations on the pull request. The action runs the code at the ref you pin,
 so pinning a commit SHA pins the checker.
+
+The floating major tag is `v0` while the package is below 1.0, and becomes `v1` at the 1.0
+release. Production callers pin a commit SHA.
 
 Editors can validate both files against the published JSON schemas in
 [`src/ecs_contract/schema/`](src/ecs_contract/schema/) through a `$schema` key.
