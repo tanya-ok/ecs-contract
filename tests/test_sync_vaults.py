@@ -203,3 +203,15 @@ def test_hashicorp_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("VAULT_TOKEN", raising=False)
     with pytest.raises(VaultError, match="needs VAULT_ADDR and VAULT_TOKEN"):
         HashiCorpVault.from_environment()
+
+
+def test_sync_config_secret_missing(
+    world: World, fake_op: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = main(
+        world.args(
+            "sync", "--config-secret", "ghost", "--vault-backend", "1password", "--region", REGION
+        )
+    )
+    assert code == 1
+    assert "the config secret named by --config-secret cannot be found" in capsys.readouterr().out

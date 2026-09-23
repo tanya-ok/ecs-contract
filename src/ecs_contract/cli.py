@@ -414,7 +414,7 @@ def _sync(args: argparse.Namespace) -> int:
         aws = clients(args.region)
         arn = config_secret_arn(aws, args.config_secret)
         if arn is None:
-            print(f"ecsc: config secret {args.config_secret} not found")
+            print("ecsc: the config secret named by --config-secret cannot be found")
             return REFUSED
         result = sync(aws, arn, values, prune=args.prune, dry_run=args.dry_run)
     except AwsUnavailableError as error:
