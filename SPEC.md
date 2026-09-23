@@ -89,7 +89,8 @@ bundle.
 Values only a human or an external store knows. At deploy time they are fetched, written as one
 JSON document into the service's own config secret, and each key is bound out of that secret.
 The document is written whole, so it must contain every key bound out of it, not only the changed
-ones.
+ones. Keys the contract no longer names are kept by default: a rollback to the previous revision
+still binds them. Removing them is an explicit step.
 
 ### 4.3 `pointer`
 

@@ -58,6 +58,12 @@ jobs:
           uvx --from "$wheel" ecsc check \
             --parameters examples/orderbook/parameters.json \
             --secrets examples/orderbook/secrets.json
+      - name: Install with the aws extra, as the deploy workflow does
+        run: |
+          uv venv --quiet "$RUNNER_TEMP/ecsc"
+          uv pip install --quiet --python "$RUNNER_TEMP/ecsc" ".[aws]"
+          "$RUNNER_TEMP/ecsc/bin/ecsc" render --help > /dev/null
+          "$RUNNER_TEMP/ecsc/bin/python" -c "import boto3, ecs_contract.sources"
       - name: Scan built artifacts for identifiers
         run: |
           mkdir -p unpacked

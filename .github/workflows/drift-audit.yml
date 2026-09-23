@@ -1,0 +1,91 @@
+# Reusable workflow: compare what a deploy would write with what is live. Read-only role.
+name: drift-audit
+
+on:
+  workflow_call:
+    inputs:
+      parameters-file:
+        type: string
+        required: true
+      secrets-file:
+        type: string
+        required: true
+      environment:
+        type: string
+        required: true
+      cluster:
+        type: string
+        required: true
+      service:
+        type: string
+        required: true
+      container:
+        type: string
+        default: ""
+      config-secret:
+        type: string
+        default: ""
+      aws-region:
+        type: string
+        required: true
+      role-to-assume:
+        description: A read-only role. The audit never writes.
+        type: string
+        required: true
+      ecs-contract-ref:
+        type: string
+        default: v0
+      runs-on:
+        type: string
+        default: ubuntu-24.04
+
+permissions: {}
+
+jobs:
+  drift:
+    name: drift ${{ inputs.service }}
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ECSC_PARAMETERS: ${{ inputs.parameters-file }}
+      ECSC_SECRETS: ${{ inputs.secrets-file }}
+      ECSC_ENVIRONMENT: ${{ inputs.environment }}
+      ECSC_CLUSTER: ${{ inputs.cluster }}
+      ECSC_SERVICE: ${{ inputs.service }}
+      ECSC_CONTAINER: ${{ inputs.container }}
+      ECSC_CONFIG_SECRET: ${{ inputs.config-secret }}
+      AWS_REGION: ${{ inputs.aws-region }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tanya-ok/ecs-contract
+          ref: ${{ inputs.ecs-contract-ref }}
+          path: .ecs-contract
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Install ecsc
+        run: |
+          uv venv --quiet "$RUNNER_TEMP/ecsc"
+          uv pip install --quiet --python "$RUNNER_TEMP/ecsc" "./.ecs-contract[aws]"
+          echo "$RUNNER_TEMP/ecsc/bin" >> "$GITHUB_PATH"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.role-to-assume }}
+          aws-region: ${{ inputs.aws-region }}
+          role-session-name: ecs-contract-drift
+      - name: Drift audit
+        run: |
+          set -euo pipefail -f
+          args=(--parameters "$ECSC_PARAMETERS" --secrets "$ECSC_SECRETS" --environment "$ECSC_ENVIRONMENT"
+                --cluster "$ECSC_CLUSTER" --service "$ECSC_SERVICE")
+          [ -n "$ECSC_CONTAINER" ] && args+=(--container "$ECSC_CONTAINER")
+          [ -n "$ECSC_CONFIG_SECRET" ] && args+=(--config-secret "$ECSC_CONFIG_SECRET")
+          ecsc drift "${args[@]}"

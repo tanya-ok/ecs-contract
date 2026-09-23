@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ecs-contract"
-version = "0.1.0"
+version = "0.2.0"
 description = "Who owns what in an ECS task definition: a contract and a credential-free checker."
 readme = "README.md"
 license = "Apache-2.0"
@@ -28,6 +28,9 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+aws = ["boto3>=1.40"]
+
 [project.urls]
 Homepage = "https://github.com/tanya-ok/ecs-contract"
 Specification = "https://github.com/tanya-ok/ecs-contract/blob/main/SPEC.md"
@@ -43,6 +46,9 @@ dev = [
   "mypy>=1.16",
   "jsonschema>=4.23",
   "types-jsonschema>=4.23",
+  "boto3>=1.40",
+  "boto3-stubs[ecs,secretsmanager,ssm]>=1.40",
+  "moto>=5.1",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -61,7 +67,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PL", "S", "N", "PTH", "C
 ignore = ["PLR2004"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S603", "S607", "PLR0913"]
+"src/ecs_contract/cli.py" = ["PLR0911", "PLR0912"]
+"tests/**" = ["S101", "S603", "S607", "PLR0913", "S105", "S106"]
 
 [tool.mypy]
 strict = true

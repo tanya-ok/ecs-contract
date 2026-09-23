@@ -133,6 +133,60 @@ so pinning a commit SHA pins the checker.
 The floating major tag is `v0` while the package is below 1.0, and becomes `v1` at the 1.0
 release. Production callers pin a commit SHA.
 
+## Deploying
+
+`ecsc` does not register task definitions itself. It renders the next revision from the one the
+service runs now, and the official `aws-actions/amazon-ecs-deploy-task-definition` registers it.
+
+```bash
+pip install 'ecs-contract[aws]'
+ecsc render --parameters ecs/parameters.json --secrets ecs/secrets.json -e production \
+  --cluster exchange --service orderbook --container app \
+  --config-secret orderbook/production/config --image-tag 1.4.0 --out task-definition.json
+```
+
+| Command | Reads | Writes | Does |
+|---|---|---|---|
+| `ecsc render` | ECS, SSM, Secrets Manager metadata | a JSON file | copies the live revision, replaces `environment`, `secrets` and the image of one container |
+| `ecsc guard` | the rendered file, optionally ECS | nothing | refuses a secret-shaped name in `environment`, or a service that moved since render |
+| `ecsc sync` | a vault | the service's config secret | merges vault-sourced values in; keys outside the contract are kept for rollbacks unless `--prune` |
+| `ecsc drift` | as render | nothing | exits 1 when a deploy would change anything, naming each key, never a value |
+
+Every command prints names and verdicts only. Vault values are masked in the runner before
+anything else happens.
+
+As a reusable workflow, in the spec's order: check, render, guard, sync, register and wait.
+
+```yaml
+jobs:
+  deploy:
+    uses: tanya-ok/ecs-contract/.github/workflows/deploy.yml@v0
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      parameters-file: ecs/parameters.json
+      secrets-file: ecs/secrets.json
+      environment: production
+      github-environment: production
+      cluster: exchange
+      service: orderbook
+      container: app
+      image-tag: ${{ github.sha }}
+      config-secret: orderbook/production/config
+      vault-backend: 1password
+      aws-region: eu-west-1
+      role-to-assume: ${{ vars.DEPLOY_ROLE }}
+    secrets:
+      op-service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+```
+
+`drift-audit.yml` runs the audit on a schedule or on demand with a read-only role. The roles
+each step needs are listed in [docs/permissions.md](docs/permissions.md).
+
+Vault backends: `1password` reads through the `op` CLI, `hashicorp` reads a KV version 2 field
+given as `<mount>/<path>#<field>` over HTTPS.
+
 Editors can validate both files against the published JSON schemas in
 [`src/ecs_contract/schema/`](src/ecs_contract/schema/) through a `$schema` key.
 
@@ -140,8 +194,8 @@ Editors can validate both files against the published JSON schemas in
 
 | Stage | Contents | State |
 |---|---|---|
-| 1. The contract | specification, schemas, `ecsc check`, action, reusable workflow | this release |
-| 2. The resolver | render from the live revision, pluggable secret sources, drift audit, deploy guards | planned |
+| 1. The contract | specification, schemas, `ecsc check`, action, reusable workflow | 0.1 |
+| 2. The resolver | render from the live revision, pluggable secret sources, drift audit, deploy guards | 0.2 |
 | 3. The infrastructure side | a construct that points a service at the live revision, executable migration runbook | planned |
 
 The pattern was designed and then proven end to end once, on one service in one development
@@ -153,6 +207,7 @@ Further reading:
 - [SPEC.md](SPEC.md), the contract
 - [docs/traps.md](docs/traps.md), failure modes found by hitting them
 - [docs/migration.md](docs/migration.md), moving a service that already has two writers
+- [docs/permissions.md](docs/permissions.md), the roles each step needs
 - [docs/prior-art.md](docs/prior-art.md), what exists and where this fits
 
 ## Principles
