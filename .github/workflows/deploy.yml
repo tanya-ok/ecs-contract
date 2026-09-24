@@ -1,0 +1,196 @@
+# Reusable workflow: deploy one ECS service under the contract.
+# Order: check, render from the live revision, guard, sync vault values, register and wait.
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      parameters-file:
+        type: string
+        required: true
+      secrets-file:
+        type: string
+        required: true
+      environment:
+        description: Contract environment, a key under environments in both files.
+        type: string
+        required: true
+      github-environment:
+        description: GitHub deployment environment, for its protection rules and approvals.
+        type: string
+        required: true
+      cluster:
+        type: string
+        required: true
+      service:
+        type: string
+        required: true
+      container:
+        description: Container to render. Required when the task definition has several.
+        type: string
+        default: ""
+      image:
+        description: Full image reference. Leave empty to use image-tag, or neither to keep the live image.
+        type: string
+        default: ""
+      image-tag:
+        type: string
+        default: ""
+      config-secret:
+        description: The service's own config secret. Required when any key has a vault source.
+        type: string
+        default: ""
+      vault-backend:
+        description: Empty, 1password or hashicorp.
+        type: string
+        default: ""
+      vault-address:
+        description: VAULT_ADDR for the hashicorp backend.
+        type: string
+        default: ""
+      reserved:
+        description: Space-separated names the deploy sets itself.
+        type: string
+        default: ""
+      aws-region:
+        type: string
+        required: true
+      role-to-assume:
+        description: Deploy role, assumed through GitHub OIDC.
+        type: string
+        required: true
+      wait-minutes:
+        type: number
+        default: 15
+      ecs-contract-ref:
+        description: Ref of ecs-contract to run. Pin a commit SHA for production callers.
+        type: string
+        default: v0
+      runs-on:
+        type: string
+        default: ubuntu-24.04
+    secrets:
+      op-service-account-token:
+        required: false
+      vault-token:
+        required: false
+    outputs:
+      task-definition-arn:
+        description: The revision the service now runs.
+        value: ${{ jobs.deploy.outputs.task-definition-arn }}
+
+permissions: {}
+
+jobs:
+  deploy:
+    name: deploy ${{ inputs.service }}
+    runs-on: ${{ inputs.runs-on }}
+    environment: ${{ inputs.github-environment }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: ecs-contract-deploy-${{ inputs.cluster }}-${{ inputs.service }}
+      cancel-in-progress: false
+    outputs:
+      task-definition-arn: ${{ steps.deploy.outputs.task-definition-arn }}
+    env:
+      ECSC_PARAMETERS: ${{ inputs.parameters-file }}
+      ECSC_SECRETS: ${{ inputs.secrets-file }}
+      ECSC_ENVIRONMENT: ${{ inputs.environment }}
+      ECSC_CLUSTER: ${{ inputs.cluster }}
+      ECSC_SERVICE: ${{ inputs.service }}
+      ECSC_CONTAINER: ${{ inputs.container }}
+      ECSC_IMAGE: ${{ inputs.image }}
+      ECSC_IMAGE_TAG: ${{ inputs.image-tag }}
+      ECSC_CONFIG_SECRET: ${{ inputs.config-secret }}
+      ECSC_RESERVED: ${{ inputs.reserved }}
+      AWS_REGION: ${{ inputs.aws-region }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tanya-ok/ecs-contract
+          ref: ${{ inputs.ecs-contract-ref }}
+          path: .ecs-contract
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Install ecsc
+        run: |
+          uv venv --quiet "$RUNNER_TEMP/ecsc"
+          uv pip install --quiet --python "$RUNNER_TEMP/ecsc" "./.ecs-contract[aws]"
+          echo "$RUNNER_TEMP/ecsc/bin" >> "$GITHUB_PATH"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.role-to-assume }}
+          aws-region: ${{ inputs.aws-region }}
+          role-session-name: ecs-contract-deploy
+      - name: Check the contract
+        run: |
+          set -euo pipefail -f
+          args=(--parameters "$ECSC_PARAMETERS" --secrets "$ECSC_SECRETS" --environment "$ECSC_ENVIRONMENT")
+          for name in $ECSC_RESERVED; do args+=(--reserved "$name"); done
+          ecsc check "${args[@]}"
+      - name: Render from the live revision
+        id: render
+        run: |
+          set -euo pipefail -f
+          args=(--parameters "$ECSC_PARAMETERS" --secrets "$ECSC_SECRETS" --environment "$ECSC_ENVIRONMENT"
+                --cluster "$ECSC_CLUSTER" --service "$ECSC_SERVICE" --out "$RUNNER_TEMP/task-definition.json")
+          for name in $ECSC_RESERVED; do args+=(--reserved "$name"); done
+          [ -n "$ECSC_CONTAINER" ] && args+=(--container "$ECSC_CONTAINER")
+          [ -n "$ECSC_CONFIG_SECRET" ] && args+=(--config-secret "$ECSC_CONFIG_SECRET")
+          if [ -n "$ECSC_IMAGE" ]; then args+=(--image "$ECSC_IMAGE");
+          elif [ -n "$ECSC_IMAGE_TAG" ]; then args+=(--image-tag "$ECSC_IMAGE_TAG"); fi
+          ecsc render "${args[@]}"
+      - name: Guard
+        env:
+          LIVE: ${{ steps.render.outputs.live-task-definition }}
+        run: |
+          set -euo pipefail -f
+          args=(--task-definition "$RUNNER_TEMP/task-definition.json" --expect-task-definition "$LIVE"
+                --cluster "$ECSC_CLUSTER" --service "$ECSC_SERVICE")
+          [ -n "$ECSC_CONTAINER" ] && args+=(--container "$ECSC_CONTAINER")
+          ecsc guard "${args[@]}"
+      - if: inputs.vault-backend == '1password'
+        uses: 1password/install-cli-action@1a3160d5e9de1ae0803eaa08a88746f5ae3daa50 # v4.1.0
+      - name: Sync vault values into the config secret
+        if: inputs.vault-backend != ''
+        env:
+          BACKEND: ${{ inputs.vault-backend }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.op-service-account-token }}
+          VAULT_ADDR: ${{ inputs.vault-address }}
+          VAULT_TOKEN: ${{ secrets.vault-token }}
+        run: |
+          set -euo pipefail -f
+          args=(--parameters "$ECSC_PARAMETERS" --secrets "$ECSC_SECRETS" --environment "$ECSC_ENVIRONMENT"
+                --config-secret "$ECSC_CONFIG_SECRET" --vault-backend "$BACKEND")
+          for name in $ECSC_RESERVED; do args+=(--reserved "$name"); done
+          ecsc sync "${args[@]}"
+      - name: Register, update the service, wait
+        id: deploy
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
+        with:
+          task-definition: ${{ runner.temp }}/task-definition.json
+          cluster: ${{ inputs.cluster }}
+          service: ${{ inputs.service }}
+          wait-for-service-stability: true
+          wait-for-minutes: ${{ inputs.wait-minutes }}
+      - name: Record the deployed revision
+        env:
+          ARN: ${{ steps.deploy.outputs.task-definition-arn }}
+        run: |
+          revision="${ARN##*/}"
+          echo "deployed: $revision"
+          {
+            echo "### ecs-contract deploy"
+            echo ""
+            echo "| Service | Contract environment | Revision |"
+            echo "|---|---|---|"
+            echo "| $ECSC_SERVICE | $ECSC_ENVIRONMENT | $revision |"
+          } >> "$GITHUB_STEP_SUMMARY"

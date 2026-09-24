@@ -9,6 +9,8 @@ import pytest
 
 from ecs_contract import Report, check
 
+pytest_plugins = ("tests.aws_world",)
+
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "tests" / "fixtures"
 EXAMPLE = ROOT / "examples" / "orderbook"
