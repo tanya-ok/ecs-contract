@@ -26,6 +26,9 @@ account.
   backends.
 - Reusable `deploy.yml` and `drift-audit.yml` workflows, and `docs/permissions.md`.
 - The `aws` extra, which installs boto3 for the commands that read AWS.
+- A failed AWS call is reported as one line naming the operation and the error code, exit 2,
+  never a traceback or the AWS message.
+- `scripts/smoke.py`, a live smoke of every command against a synthetic Fargate service.
 - `CHANGELOG.md`, `CODEOWNERS` and a security policy.
 
 ### Changed
