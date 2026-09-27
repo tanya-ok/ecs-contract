@@ -7,8 +7,25 @@ the 1.0 release.
 
 ## Unreleased
 
+## 0.2.0 - 2026-09-27
+
+Stage 2, the resolver. Verified end to end once on a synthetic Fargate service in a personal
+account.
+
 ### Added
 
+- `ecsc render`, which copies the revision the service runs now and replaces only `environment`,
+  `secrets` and the image of one container. Tags and every other field are kept.
+- `ecsc drift`, which exits 1 when a deploy would change anything and names each key, never a
+  value.
+- `ecsc guard`, which refuses a secret-shaped name in `environment` and a service that moved since
+  render.
+- `ecsc sync`, which merges vault-sourced values into the service's config secret. Keys outside
+  the contract are kept for rollbacks unless `--prune`.
+- Secret sources `pointer`, `parameter` and `vault`, with 1Password and HashiCorp Vault KV v2
+  backends.
+- Reusable `deploy.yml` and `drift-audit.yml` workflows, and `docs/permissions.md`.
+- The `aws` extra, which installs boto3 for the commands that read AWS.
 - `CHANGELOG.md`, `CODEOWNERS` and a security policy.
 
 ### Changed
