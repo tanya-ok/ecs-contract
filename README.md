@@ -153,7 +153,8 @@ ecsc render --parameters ecs/parameters.json --secrets ecs/secrets.json -e produ
 | `ecsc drift` | as render | nothing | exits 1 when a deploy would change anything, naming each key, never a value |
 
 Every command prints names and verdicts only. Vault values are masked in the runner before
-anything else happens.
+anything else happens. A failed AWS call is one line naming the operation and the error code,
+exit `2`; the AWS message is dropped because it can carry ARNs and account ids.
 
 As a reusable workflow, in the spec's order: check, render, guard, sync, register and wait.
 

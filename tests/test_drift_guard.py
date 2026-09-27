@@ -4,9 +4,12 @@ import json
 from typing import Any
 
 import pytest
+from botocore.exceptions import ClientError, NoCredentialsError
 
+import ecs_contract.aws
 from ecs_contract.cli import main
 from tests.aws_world import CLUSTER, CONFIG_SECRET, REGION, SERVICE, World
+from tests.conftest import ACCOUNT_ID, ARN_PREFIX
 
 
 def rendered(world: World, capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
@@ -103,3 +106,55 @@ def test_guard_expect_needs_service(world: World, capsys: pytest.CaptureFixture[
 
 def test_guard_unreadable(tmp_path: Any) -> None:
     assert guard(str(tmp_path / "missing.json")) == 2
+
+
+def _refusing(monkeypatch: pytest.MonkeyPatch, client: str, method: str, error: Exception) -> None:
+    real = ecs_contract.aws.clients
+
+    def patched(region: str | None) -> Any:
+        aws = real(region)
+
+        def refuse(*_args: object, **_kwargs: object) -> None:
+            raise error
+
+        monkeypatch.setattr(getattr(aws, client), method, refuse)
+        return aws
+
+    monkeypatch.setattr(ecs_contract.aws, "clients", patched)
+
+
+@pytest.mark.parametrize("command", ["render", "drift"])
+def test_aws_error_is_one_line_without_identifiers(
+    world: World,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    message = f"User: {ARN_PREFIX}iam::{ACCOUNT_ID}:user/ci is not authorized"
+    denied = ClientError(
+        {"Error": {"Code": "AccessDeniedException", "Message": message}}, "DescribeSecret"
+    )
+    _refusing(monkeypatch, "secretsmanager", "describe_secret", denied)
+    extra = ["--dry-run"] if command == "render" else []
+    args = world.args(
+        command,
+        *world.service_args("--container", "app", "--config-secret", CONFIG_SECRET, *extra),
+    )
+    assert main(args) == 2
+    captured = capsys.readouterr()
+    assert captured.err == "ecsc: AWS DescribeSecret failed: AccessDeniedException\n"
+    assert ACCOUNT_ID not in captured.out + captured.err
+
+
+def test_botocore_error_without_operation(
+    world: World, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _refusing(monkeypatch, "ecs", "describe_services", NoCredentialsError())
+    assert drift(world) == 2
+    assert capsys.readouterr().err == "ecsc: AWS call failed: NoCredentialsError\n"
+
+
+def test_other_errors_still_raise(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    _refusing(monkeypatch, "ecs", "describe_services", RuntimeError("bug"))
+    with pytest.raises(RuntimeError):
+        drift(world)

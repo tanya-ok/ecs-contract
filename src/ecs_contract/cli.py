@@ -157,6 +157,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _fail(str(error))
     except ImportError as error:
         return _fail(f"this command reads AWS; install ecs-contract[aws] ({error.name})")
+    except Exception as error:
+        from ecs_contract.aws import failure  # noqa: PLC0415
+
+        line = failure(error)
+        if line is None:
+            raise
+        return _fail(line)
 
 
 def _fail(message: str) -> int:
