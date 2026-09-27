@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ecs-contract"
-version = "0.2.0"
+version = "0.3.0"
 description = "Who owns what in an ECS task definition: a contract and a credential-free checker."
 readme = "README.md"
 license = "Apache-2.0"

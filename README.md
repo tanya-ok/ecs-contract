@@ -204,8 +204,8 @@ the live service. Both, and a Terraform equivalent, are in
 | Stage | Contents | State |
 |---|---|---|
 | 1. The contract | specification, schemas, `ecsc check`, action, reusable workflow | 0.1 |
-| 2. The resolver | render from the live revision, pluggable secret sources, drift audit, deploy guards | 0.2 |
-| 3. The infrastructure side | a construct that points a service at the live revision, executable migration runbook | unreleased |
+| 2. The resolver | render from the live revision, pluggable secret sources, drift audit, deploy guards | 0.3 |
+| 3. The infrastructure side | a construct that points a service at the live revision, executable migration runbook | 0.3 |
 
 The pattern was designed and then proven end to end once, on one service in one development
 environment. It has not yet run across a fleet. Read it as carefully designed and once verified,
