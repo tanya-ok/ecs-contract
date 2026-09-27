@@ -85,7 +85,14 @@ def leaked(text: str) -> list[str]:
     return [k for k, v in values.items() if v in text]
 
 
-def ecsc(*args: str, expect: int) -> str:
+def redacted(text: str) -> str:
+    for key, value in values.items():
+        text = text.replace(value, f"<redacted:{key}>")
+    return text
+
+
+def ecsc(command: str, *args: str, expect: int) -> str:
+    """Run one ecsc command. Only the command name and the redacted output are printed."""
     env = {
         **os.environ,
         "AWS_REGION": REGION,
@@ -94,15 +101,18 @@ def ecsc(*args: str, expect: int) -> str:
         "GITHUB_OUTPUT": str(work / "github-output"),
     }
     env.pop("GITHUB_ACTIONS", None)
-    done = subprocess.run(["ecsc", *args], capture_output=True, text=True, env=env, check=False)
+    done = subprocess.run(
+        ["ecsc", command, *args], capture_output=True, text=True, env=env, check=False
+    )
     out = done.stdout + done.stderr
-    print(f"  $ ecsc {args[0]} ... -> exit {done.returncode}")
-    for line in out.splitlines():
-        print(f"    {line}")
     hits = leaked(out)
-    step(f"ecsc {args[0]}: exit {expect} (got {done.returncode})", done.returncode == expect)
-    step(f"ecsc {args[0]}: no value in output", not hits)
-    step(f"ecsc {args[0]}: no traceback", "Traceback" not in out)
+    code = done.returncode
+    print(f"  $ ecsc {command} ... -> exit {code}")
+    for line in redacted(out).splitlines():
+        print(f"    {line}")
+    step(f"ecsc {command}: exit {expect} (got {code})", code == expect)
+    step(f"ecsc {command}: no value in output", not hits)
+    step(f"ecsc {command}: no traceback", "Traceback" not in out)
     return out
 
 
@@ -324,15 +334,15 @@ def run() -> None:
     ecsc("check", *contract_args(), expect=0)
     ecsc("drift", *contract_args(), *service_args(), "--config-secret", CONFIG_SECRET, expect=1)
 
-    sync = ["sync", *contract_args(), "-e", ENV, "--config-secret", CONFIG_SECRET]
+    sync = [*contract_args(), "-e", ENV, "--config-secret", CONFIG_SECRET]
     sync += ["--vault-backend", "hashicorp"]
-    ecsc(*sync, "--dry-run", expect=0)
+    ecsc("sync", *sync, "--dry-run", expect=0)
     step("sync --dry-run left the config secret without a value", config_document() is None)
-    out = ecsc(*sync, expect=0)
+    out = ecsc("sync", *sync, expect=0)
     step("sync added SETTLEMENT_API_TOKEN", "SETTLEMENT_API_TOKEN: added" in out)
     wanted = {"SETTLEMENT_API_TOKEN": values["settlement"]}
     step("config secret holds the vault value", settled(lambda: config_document() == wanted))
-    out = ecsc(*sync, expect=0)
+    out = ecsc("sync", *sync, expect=0)
     step("second sync wrote nothing", "already current" in out)
     sm.put_secret_value(
         SecretId=CONFIG_SECRET,
@@ -341,15 +351,15 @@ def run() -> None:
         ),
     )
     settled(lambda: "RETIRED_KEY" in (config_document() or {}))
-    out = ecsc(*sync, expect=0)
+    out = ecsc("sync", *sync, expect=0)
     step("sync kept a key outside the contract", "RETIRED_KEY: kept" in out)
-    out = ecsc(*sync, "--prune", "--dry-run", expect=0)
+    out = ecsc("sync", *sync, "--prune", "--dry-run", expect=0)
     step("prune dry run names the key it would drop", "RETIRED_KEY: removed" in out)
     step("prune dry run wrote nothing", "RETIRED_KEY" in (config_document() or {}))
 
     rendered = work / "task-definition.json"
-    render = ["render", *contract_args(), *service_args(), "--config-secret", CONFIG_SECRET]
-    ecsc(*render, "--image-tag", "1.37", "--out", str(rendered), expect=0)
+    render = [*contract_args(), *service_args(), "--config-secret", CONFIG_SECRET]
+    ecsc("render", *render, "--image-tag", "1.37", "--out", str(rendered), expect=0)
     text = rendered.read_text()
     step("rendered file holds no value", not leaked(text))
     td = json.loads(text)
