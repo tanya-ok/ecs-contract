@@ -41,3 +41,13 @@ def error_code(error: BaseException) -> str:
         code = response.get("Error", {}).get("Code", "")
         return str(code)
     return ""
+
+
+def failure(error: BaseException) -> str | None:
+    """One line for a failed AWS call: operation and code. The message is dropped, since AWS
+    messages can carry ARNs and account ids. None when the error did not come from botocore."""
+    if not type(error).__module__.startswith("botocore"):
+        return None
+    code = error_code(error) or type(error).__name__
+    operation = getattr(error, "operation_name", None)
+    return f"AWS {operation} failed: {code}" if operation else f"AWS call failed: {code}"

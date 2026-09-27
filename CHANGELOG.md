@@ -7,8 +7,36 @@ the 1.0 release.
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-27
+
+Stage 2, the resolver, and Stage 3, the infrastructure side. 0.2.0 was prepared but never
+released; its scope ships here. The resolver was verified end to end once on a synthetic Fargate
+service in a personal account.
+
 ### Added
 
+- `ServiceFromLiveRevision` in the `cdk` extra, which sets an ECS service to the revision it runs
+  now, read with `DescribeServices` at every synthesis. Any lookup failure stops synthesis. The
+  template holds no task definition and no desired count.
+- `ecsc migrate --plan`, which prints the migration runbook filled in from the live service, by
+  name only.
+- `docs/infrastructure.md`, the construct and its Terraform equivalent.
+
+- `ecsc render`, which copies the revision the service runs now and replaces only `environment`,
+  `secrets` and the image of one container. Tags and every other field are kept.
+- `ecsc drift`, which exits 1 when a deploy would change anything and names each key, never a
+  value.
+- `ecsc guard`, which refuses a secret-shaped name in `environment` and a service that moved since
+  render.
+- `ecsc sync`, which merges vault-sourced values into the service's config secret. Keys outside
+  the contract are kept for rollbacks unless `--prune`.
+- Secret sources `pointer`, `parameter` and `vault`, with 1Password and HashiCorp Vault KV v2
+  backends.
+- Reusable `deploy.yml` and `drift-audit.yml` workflows, and `docs/permissions.md`.
+- The `aws` extra, which installs boto3 for the commands that read AWS.
+- A failed AWS call is reported as one line naming the operation and the error code, exit 2,
+  never a traceback or the AWS message.
+- `scripts/smoke.py`, a live smoke of every command against a synthetic Fargate service.
 - `CHANGELOG.md`, `CODEOWNERS` and a security policy.
 
 ### Changed

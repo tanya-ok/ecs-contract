@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ecs-contract"
-version = "0.2.0"
+version = "0.3.0"
 description = "Who owns what in an ECS task definition: a contract and a credential-free checker."
 readme = "README.md"
 license = "Apache-2.0"
@@ -76,6 +76,7 @@ ignore = ["PLR2004"]
 [tool.ruff.lint.per-file-ignores]
 "src/ecs_contract/cli.py" = ["PLR0911", "PLR0912"]
 "tests/**" = ["S101", "S603", "S607", "PLR0913", "S105", "S106"]
+"scripts/smoke.py" = ["S310", "S603", "S607", "PLR0915"]
 
 [tool.mypy]
 strict = true
