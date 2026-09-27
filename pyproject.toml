@@ -30,6 +30,11 @@ dependencies = []
 
 [project.optional-dependencies]
 aws = ["boto3>=1.40"]
+cdk = [
+    "aws-cdk-lib>=2.200",
+    "boto3>=1.40",
+    "constructs>=10.4",
+]
 
 [project.urls]
 Homepage = "https://github.com/tanya-ok/ecs-contract"
@@ -49,6 +54,8 @@ dev = [
   "boto3>=1.40",
   "boto3-stubs[ecs,secretsmanager,ssm]>=1.40",
   "moto>=5.1",
+  "aws-cdk-lib>=2.200",
+  "constructs>=10.4",
 ]
 
 [tool.hatch.build.targets.wheel]

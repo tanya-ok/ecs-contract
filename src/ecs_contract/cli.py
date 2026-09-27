@@ -137,6 +137,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="drop keys the contract no longer names; by default they are kept for rollbacks",
     )
     sync_parser.add_argument("--dry-run", action="store_true", help="report by name, write nothing")
+
+    migrate_parser = commands.add_parser(
+        "migrate",
+        parents=[output, one_environment, service],
+        help="print the migration runbook filled in from the live service; reads AWS",
+        description="Read the live service and print, by name, what each migration step touches."
+        " Changes nothing.",
+    )
+    migrate_parser.add_argument(
+        "--plan", action="store_true", required=True, help="print the plan; the only mode"
+    )
     return parser
 
 
@@ -150,6 +161,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "drift": _drift,
         "guard": _guard,
         "sync": _sync,
+        "migrate": _migrate,
     }
     try:
         return handlers[args.command](args)
@@ -442,6 +454,24 @@ def _sync(args: argparse.Namespace) -> int:
         print("sync: dry run, nothing written")
     else:
         print("sync: written" if result.written else "sync: already current, nothing written")
+    return OK
+
+
+def _migrate(args: argparse.Namespace) -> int:
+    from ecs_contract.aws import AwsUnavailableError, clients  # noqa: PLC0415
+    from ecs_contract.migrate import lines, plan  # noqa: PLC0415
+    from ecs_contract.render import RenderError, live  # noqa: PLC0415
+
+    try:
+        current = live(clients(args.region), args.cluster, args.service)
+        result = plan(current, args.service, args.environment, args.container)
+    except AwsUnavailableError as error:
+        return _fail(str(error))
+    except RenderError as error:
+        print(f"ecsc: {error}")
+        return REFUSED
+    for line in lines(result):
+        print(line)
     return OK
 
 

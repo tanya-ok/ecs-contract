@@ -1,6 +1,7 @@
 # Permissions
 
-Three roles take part. Scope every resource to one service: a deploy role shared across services
+Three roles take part, plus the infrastructure synthesis role, which needs only
+`ecs:DescribeServices` on the service to read the live revision. Scope every resource to one service: a deploy role shared across services
 lets one typo reach a sibling's database.
 
 ## Audit role, read only
