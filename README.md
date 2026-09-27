@@ -190,13 +190,21 @@ given as `<mount>/<path>#<field>` over HTTPS.
 Editors can validate both files against the published JSON schemas in
 [`src/ecs_contract/schema/`](src/ecs_contract/schema/) through a `$schema` key.
 
+## The infrastructure side
+
+`pip install 'ecs-contract[cdk]'` adds `ServiceFromLiveRevision`, a CDK construct that sets the
+service to the revision it runs now, looked up at every synthesis, and holds no task definition.
+A failed lookup stops synthesis. `ecsc migrate --plan` prints the migration runbook filled in from
+the live service. Both, and a Terraform equivalent, are in
+[docs/infrastructure.md](docs/infrastructure.md).
+
 ## Status
 
 | Stage | Contents | State |
 |---|---|---|
 | 1. The contract | specification, schemas, `ecsc check`, action, reusable workflow | 0.1 |
 | 2. The resolver | render from the live revision, pluggable secret sources, drift audit, deploy guards | 0.2 |
-| 3. The infrastructure side | a construct that points a service at the live revision, executable migration runbook | planned |
+| 3. The infrastructure side | a construct that points a service at the live revision, executable migration runbook | unreleased |
 
 The pattern was designed and then proven end to end once, on one service in one development
 environment. It has not yet run across a fleet. Read it as carefully designed and once verified,
@@ -208,6 +216,7 @@ Further reading:
 - [docs/traps.md](docs/traps.md), failure modes found by hitting them
 - [docs/migration.md](docs/migration.md), moving a service that already has two writers
 - [docs/permissions.md](docs/permissions.md), the roles each step needs
+- [docs/infrastructure.md](docs/infrastructure.md), the construct and the Terraform equivalent
 - [docs/prior-art.md](docs/prior-art.md), what exists and where this fits
 
 ## Principles

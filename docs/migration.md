@@ -5,6 +5,8 @@ the same service today. Every step is reversible until step 3.
 
 Nothing else may deploy this service's infrastructure stack between step 2 and step 3.
 
+`ecsc migrate --plan` prints these steps filled in from the live service, by name.
+
 ## 0. Before you start
 
 - [ ] Record the task definition ARN the service runs now.
@@ -24,7 +26,8 @@ Nothing else may deploy this service's infrastructure stack between step 2 and s
 ## 2. Retain, and point at the live revision
 
 - [ ] In one commit: add a retain deletion policy to the task definition resource, and set the
-      service's task definition to the ARN it runs now, looked up at synthesis time.
+      service's task definition to the ARN it runs now, looked up at synthesis time
+      (`ServiceFromLiveRevision`, see [infrastructure.md](infrastructure.md)).
 - [ ] If the lookup fails, synthesis must fail. Never substitute a placeholder: it would be deployed.
 - [ ] Plan. The service must show no replacement and no new deployment.
 - [ ] Deploy this commit.
