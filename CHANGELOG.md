@@ -7,11 +7,40 @@ the 1.0 release.
 
 ## Unreleased
 
-## 0.3.0 - 2026-09-27
+Everything below this heading and above 0.1.0 is unreleased. The package version in
+`pyproject.toml` is 0.3.0, but no 0.3.0 tag or PyPI release exists yet: PyPI and the `v0` tag
+still carry 0.1.0.
+
+### Security
+
+- The HashiCorp Vault backend no longer follows redirects. Any 3xx answer is an error, so
+  `X-Vault-Token` is never sent to a redirect target.
+- Vault references with an empty, `.` or `..` path segment are refused before any request.
+- Step outputs use the multiline `name<<DELIMITER` form with a random delimiter, so a value
+  cannot add or end an output. `ecsc drift` escapes its GitHub annotations.
+- The reusable deploy and drift audit workflows install `ecsc` from `uv.lock` instead of
+  resolving dependencies afresh, and every `setup-uv` step pins the uv version.
+- The release workflow runs the full CI suite before building and publishing.
+- Documentation tooling installs from a hashed lock, `requirements-docs.lock`.
+
+### Fixed
+
+- `ecsc sync` refuses a config secret holding non-string JSON values, naming the key and never
+  the value, instead of rewriting them as Python reprs.
+- `python -m ecs_contract.cli` defined `_serialize` after the main guard and failed.
+- A local Vault test no longer binds the real forwarding port.
+
+### Changed
+
+- The audit role in `docs/permissions.md` no longer reads secret values. The docs add an OIDC
+  trust policy example and guidance for pinning `ecs-contract-ref` and protecting `v*` tags.
+- Light and dark documentation themes.
+
+## 0.3.0 - Unreleased
 
 Stage 2, the resolver, and Stage 3, the infrastructure side. 0.2.0 was prepared but never
-released; its scope ships here. The resolver was verified end to end once on a synthetic Fargate
-service in a personal account.
+released; its scope ships here. The resolver was verified end to end on a synthetic Fargate
+service in a personal account; see [the demo guide](docs/demo.md).
 
 ### Added
 

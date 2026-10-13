@@ -41,7 +41,13 @@ def current_document(aws: Clients, secret_arn: str) -> dict[str, str]:
         raise SyncError("the config secret holds something other than a JSON object") from error
     if not isinstance(document, dict):
         raise SyncError("the config secret holds something other than a JSON object")
-    return {str(k): str(v) for k, v in document.items()}
+    for key, value in document.items():
+        if not isinstance(value, str):
+            raise SyncError(
+                f"the config secret key {key} holds a non-string JSON value; "
+                "store it as a string or remove it before syncing"
+            )
+    return document
 
 
 def sync(

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from ecs_contract import __version__
 from ecs_contract.contract import ContractFileError, check, load
-from ecs_contract.problems import Problem
+from ecs_contract.problems import Problem, escape_data
 from ecs_contract.reserved import is_secret_shaped
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 OK, REFUSED, MISUSE = 0, 1, 2
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:  # noqa: PLR0915 - declarative command definitions
     parser = argparse.ArgumentParser(
         prog="ecsc", description="Who owns what in an ECS task definition."
     )
@@ -148,6 +148,16 @@ def build_parser() -> argparse.ArgumentParser:
     migrate_parser.add_argument(
         "--plan", action="store_true", required=True, help="print the plan; the only mode"
     )
+    serialized = commands.add_parser(
+        "serialize",
+        parents=[output],
+        help="run one foreground deployment under a shared DynamoDB mutex",
+    )
+    serialized.add_argument("--lock-table", required=True)
+    serialized.add_argument("--service-arn", required=True)
+    serialized.add_argument("--region", default=os.environ.get("AWS_REGION"))
+    serialized.add_argument("--expect-task-definition")
+    serialized.add_argument("deployment_command", nargs=argparse.REMAINDER)
     return parser
 
 
@@ -162,6 +172,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "guard": _guard,
         "sync": _sync,
         "migrate": _migrate,
+        "serialize": _serialize,
     }
     try:
         return handlers[args.command](args)
@@ -325,7 +336,10 @@ def _drift(args: argparse.Namespace) -> int:
     print(f"live revision: {prepared.live.revision}")
     for difference in differences:
         text = f"drift: {difference.text()}"
-        print(f"::error title=ecs-contract drift::{text}" if args.format == "github" else text)
+        if args.format == "github":
+            print(f"::error title=ecs-contract drift::{escape_data(text)}")
+        else:
+            print(text)
     if differences:
         count = len(differences)
         print(f"ecsc: {count} difference{'' if count == 1 else 's'}")
@@ -473,6 +487,25 @@ def _migrate(args: argparse.Namespace) -> int:
     for line in lines(result):
         print(line)
     return OK
+
+
+def _serialize(args: argparse.Namespace) -> int:
+    from ecs_contract.serialization import SerializationError, serialized_from_aws  # noqa: PLC0415
+
+    command = args.deployment_command
+    if command[:1] == ["--"]:
+        command = command[1:]
+    try:
+        return serialized_from_aws(
+            args.lock_table,
+            args.service_arn,
+            command,
+            region=args.region,
+            expected=args.expect_task_definition,
+        )
+    except SerializationError as error:
+        print(f"ecsc: {error}", file=sys.stderr)
+        return REFUSED
 
 
 if __name__ == "__main__":  # pragma: no cover

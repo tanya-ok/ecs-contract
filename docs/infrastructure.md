@@ -2,12 +2,18 @@
 
 Infrastructure keeps the service and stops describing a task definition. It reads the revision
 the service runs now and sets that exact ARN on the service resource. The template then holds no
-task definition, so an infrastructure deploy cannot revert what the application wrote.
+task definition. The ARN is a snapshot from synthesis, so a saved plan can still revert a
+newer application deployment. Keep synthesis/plan, revision checks, deploy and completion
+inside the [same service lock](serialization.md) used by every application writer.
+A check immediately before deployment alone still has a race.
 
 ## AWS CDK, Python
 
+PyPI currently has 0.1.0, which does not include the construct, and neither do the existing tags.
+Install from git, pinned to a full commit SHA:
+
 ```bash
-pip install 'ecs-contract[cdk]'
+pip install "ecs-contract[cdk] @ git+https://github.com/tanya-ok/ecs-contract@<full-commit-sha>"
 ```
 
 ```python

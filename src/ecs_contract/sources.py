@@ -6,7 +6,7 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -17,6 +17,7 @@ SECRET_ARN = re.compile(
     r"arn:aws(?:-[a-z]+)*:secretsmanager:[a-z0-9-]+:\d{12}:secret:[A-Za-z0-9/_+=.@-]+-[A-Za-z0-9]{6}"
 )
 _DENIED = {"AccessDeniedException", "AccessDenied", "UnauthorizedOperation"}
+KeyProbe = Literal["present", "missing_key", "missing_secret", "invalid_json", "denied", "failed"]
 
 
 @dataclass(frozen=True)
@@ -123,11 +124,18 @@ class _Resolver:
         if json_key is None:
             self.result.bindings.append(Binding(key, arn, "pointer"))
             return
-        verdict = _has_json_key(self.aws, arn, str(json_key))
-        if verdict is False:
-            self.problem(key, f"the secret behind this pointer has no key {json_key}")
+        verdict = _probe_json_key(self.aws, arn, str(json_key))
+        failures = {
+            "missing_key": f"the secret behind this pointer has no key {json_key}",
+            "missing_secret": "the secret behind this pointer does not exist",
+            "invalid_json": "the secret behind this pointer is not a JSON object",
+            "failed": "cannot verify the secret behind this pointer: read failed;"
+            " check service availability and decryption permissions before retrying",
+        }
+        if verdict in failures:
+            self.problem(key, failures[verdict])
             return
-        if verdict is None:
+        if verdict == "denied":
             self.warning(
                 key,
                 f"cannot read the secret behind this pointer to confirm key {json_key};"
@@ -141,18 +149,24 @@ class _Resolver:
             self.result.bindings.append(Binding(key, str(parameter["ARN"]), "parameter"))
 
 
-def _has_json_key(aws: Clients, arn: str, json_key: str) -> bool | None:
-    """True or False when the secret is readable, None when the caller may not read it."""
+def _probe_json_key(aws: Clients, arn: str, json_key: str) -> KeyProbe:
+    """Keep the documented denied-read mode distinct from failed reads and proven absence."""
     try:
         response = aws.secretsmanager.get_secret_value(SecretId=arn)
     except ClientError as error:
         if error_code(error) in _DENIED:
-            return None
-        return False
+            return "denied"
+        if error_code(error) == "ResourceNotFoundException":
+            return "missing_secret"
+        return "failed"
     except BotoCoreError:
-        return None
+        return "failed"
     try:
         document = json.loads(response.get("SecretString") or "")
     except ValueError:
-        return False
-    return isinstance(document, dict) and json_key in document
+        return "invalid_json"
+    return (
+        ("present" if json_key in document else "missing_key")
+        if isinstance(document, dict)
+        else "invalid_json"
+    )
