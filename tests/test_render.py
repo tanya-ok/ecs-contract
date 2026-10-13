@@ -6,9 +6,12 @@ import sys
 from typing import Any
 
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError
 
+from ecs_contract.aws import Clients
 from ecs_contract.cli import main
 from tests.aws_world import CONFIG_SECRET, POINTER, World
+from tests.test_github import outputs as parse_outputs
 
 IDENTIFIERS = re.compile("arn" + r":aws|\b\d{12}\b")
 
@@ -103,7 +106,7 @@ def test_github_outputs(
     outputs = world.root / "outputs"
     monkeypatch.setenv("GITHUB_OUTPUT", str(outputs))
     written(world, capsys)
-    lines = dict(line.split("=", 1) for line in outputs.read_text().splitlines())
+    lines = parse_outputs(outputs)
     assert lines["live-task-definition"] == world.task_definition_arn
     assert lines["task-definition"].endswith("task-definition.json")
 
@@ -222,3 +225,87 @@ def test_without_boto3(
     code = main(world.args("render", *world.service_args("--dry-run")))
     assert code == 2
     assert "install ecs-contract[aws]" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("error_code", "expected", "exit_code"),
+    [
+        ("AccessDeniedException", "cannot read the secret behind this pointer", 0),
+        ("ThrottlingException", "cannot verify the secret behind this pointer: read failed", 1),
+        ("DecryptionFailure", "cannot verify the secret behind this pointer: read failed", 1),
+        ("ResourceNotFoundException", "the secret behind this pointer does not exist", 1),
+        ("InternalServiceError", "cannot verify the secret behind this pointer: read failed", 1),
+    ],
+)
+def test_secret_probe_distinguishes_unreadable_from_absent(
+    world: World,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    error_code: str,
+    expected: str,
+    exit_code: int,
+) -> None:
+    aws = Clients(world.ecs, world.ssm, world.secretsmanager)
+    monkeypatch.setattr("ecs_contract.aws.clients", lambda region: aws)
+
+    def fail(**kwargs: Any) -> Any:
+        raise ClientError(
+            {"Error": {"Code": error_code, "Message": "synthetic-sensitive-message"}},
+            "GetSecretValue",
+        )
+
+    monkeypatch.setattr(world.secretsmanager, "get_secret_value", fail)
+    output = world.root / "probe-task.json"
+    code, out = render(
+        world,
+        capsys,
+        "--container",
+        "app",
+        "--config-secret",
+        CONFIG_SECRET,
+        "--out",
+        str(output),
+    )
+    assert code == exit_code
+    assert expected in out
+    assert "has no key" not in out
+    assert "synthetic-sensitive-message" not in out
+    assert not IDENTIFIERS.search(out)
+    assert output.exists() is (exit_code == 0)
+    if exit_code == 0:
+        assert "binding kept" in out
+
+
+@pytest.mark.parametrize("value", ['{"different":"synthetic"}', "not-json", "[]"])
+def test_secret_probe_distinguishes_json_shape_from_absent_key(
+    world: World, capsys: pytest.CaptureFixture[str], value: str
+) -> None:
+    world.secretsmanager.put_secret_value(SecretId=world.db_secret_arn, SecretString=value)
+    code, out = render(
+        world, capsys, "--container", "app", "--config-secret", CONFIG_SECRET, "--dry-run"
+    )
+    assert code == 1
+    assert ("has no key password" if value.startswith("{") else "is not a JSON object") in out
+    assert "synthetic" not in out
+
+
+def test_secret_probe_transport_failure_stops_render(
+    world: World, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "ecs_contract.aws.clients",
+        lambda region: Clients(world.ecs, world.ssm, world.secretsmanager),
+    )
+
+    def fail(**kwargs: Any) -> Any:
+        raise EndpointConnectionError(endpoint_url="https://synthetic-sensitive.example.org")
+
+    monkeypatch.setattr(world.secretsmanager, "get_secret_value", fail)
+    code, out = render(
+        world, capsys, "--container", "app", "--config-secret", CONFIG_SECRET, "--dry-run"
+    )
+    assert code == 1
+    assert "read failed" in out
+    assert "binding kept" not in out
+    assert "synthetic-sensitive" not in out

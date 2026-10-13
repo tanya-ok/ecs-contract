@@ -1,6 +1,10 @@
 # ecs-contract
 
+[![ci](https://github.com/tanya-ok/ecs-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/tanya-ok/ecs-contract/actions/workflows/ci.yml)
+
 **Who owns what in an ECS task definition.**
+
+Documentation: [tanya-ok.github.io/ecs-contract](https://tanya-ok.github.io/ecs-contract/)
 
 ## The outage you have already had
 
@@ -32,7 +36,9 @@ Two consequences carry the whole design:
 
 1. Infrastructure creates secret resources without values. The value belongs to the application.
 2. Infrastructure stops describing a task definition. It points the service at the revision that is
-   already running, unchanged, so an infrastructure deploy can never revert application content.
+   already running, unchanged. Synthesis and deployment must share a lock with application writers;
+   a saved infrastructure plan can otherwise revert a newer application revision. See
+   [deployment serialization](docs/serialization.md).
 
 Read [SPEC.md](SPEC.md) for the full contract.
 
@@ -131,15 +137,38 @@ Problems appear as annotations on the pull request. The action runs the code at 
 so pinning a commit SHA pins the checker.
 
 The floating major tag is `v0` while the package is below 1.0, and becomes `v1` at the 1.0
-release. Production callers pin a commit SHA.
+release. A tag can move; a commit SHA cannot.
+
+### Pinning
+
+The reusable workflows check out ecs-contract a second time, at the `ecs-contract-ref` input,
+which defaults to the moving `v0` tag. Pinning only the `uses:` line therefore does not pin the
+code that runs. Callers should pin both to the same full commit SHA:
+
+```yaml
+jobs:
+  deploy:
+    uses: tanya-ok/ecs-contract/.github/workflows/deploy.yml@<full-commit-sha>
+    with:
+      ecs-contract-ref: <full-commit-sha>
+      # other inputs as below
+```
+
+The same applies to `contract-check.yml` and `drift-audit.yml`. The composite action has no
+second ref: pin `tanya-ok/ecs-contract@<full-commit-sha>`. How release tags are protected is in
+[docs/publication-readiness.md](docs/publication-readiness.md#protect-release-tags).
 
 ## Deploying
 
 `ecsc` does not register task definitions itself. It renders the next revision from the one the
 service runs now, and the official `aws-actions/amazon-ecs-deploy-task-definition` registers it.
 
+PyPI currently has 0.1.0, which has only `ecsc check`. Until 0.3.0 is released, install the
+commands below from git, pinned to a full commit SHA. The existing tags, `v0.1.0` and `v0`, carry
+0.1.0 and do not include them:
+
 ```bash
-pip install 'ecs-contract[aws]'
+pip install "ecs-contract[aws] @ git+https://github.com/tanya-ok/ecs-contract@<full-commit-sha>"
 ecsc render --parameters ecs/parameters.json --secrets ecs/secrets.json -e production \
   --cluster exchange --service orderbook --container app \
   --config-secret orderbook/production/config --image-tag 1.4.0 --out task-definition.json
@@ -161,11 +190,12 @@ As a reusable workflow, in the spec's order: check, render, guard, sync, registe
 ```yaml
 jobs:
   deploy:
-    uses: tanya-ok/ecs-contract/.github/workflows/deploy.yml@v0
+    uses: tanya-ok/ecs-contract/.github/workflows/deploy.yml@<full-commit-sha>
     permissions:
       contents: read
       id-token: write
     with:
+      ecs-contract-ref: <full-commit-sha>
       parameters-file: ecs/parameters.json
       secrets-file: ecs/secrets.json
       environment: production
@@ -193,7 +223,9 @@ Editors can validate both files against the published JSON schemas in
 
 ## The infrastructure side
 
-`pip install 'ecs-contract[cdk]'` adds `ServiceFromLiveRevision`, a CDK construct that sets the
+The `cdk` extra, installed from git the same way
+(`"ecs-contract[cdk] @ git+https://github.com/tanya-ok/ecs-contract@<full-commit-sha>"`), adds
+`ServiceFromLiveRevision`, a CDK construct that sets the
 service to the revision it runs now, looked up at every synthesis, and holds no task definition.
 A failed lookup stops synthesis. `ecsc migrate --plan` prints the migration runbook filled in from
 the live service. Both, and a Terraform equivalent, are in
@@ -204,8 +236,8 @@ the live service. Both, and a Terraform equivalent, are in
 | Stage | Contents | State |
 |---|---|---|
 | 1. The contract | specification, schemas, `ecsc check`, action, reusable workflow | 0.1 |
-| 2. The resolver | render from the live revision, pluggable secret sources, drift audit, deploy guards | 0.3 |
-| 3. The infrastructure side | a construct that points a service at the live revision, executable migration runbook | 0.3 |
+| 2. The resolver | render from the live revision, pluggable secret sources, drift audit, deploy guards | 0.3, unreleased |
+| 3. The infrastructure side | a construct that points a service at the live revision, executable migration runbook | 0.3, unreleased |
 
 The pattern was designed and then proven end to end once, on one service in one development
 environment. It has not yet run across a fleet. Read it as carefully designed and once verified,
@@ -219,6 +251,8 @@ Further reading:
 - [docs/permissions.md](docs/permissions.md), the roles each step needs
 - [docs/infrastructure.md](docs/infrastructure.md), the construct and the Terraform equivalent
 - [docs/prior-art.md](docs/prior-art.md), what exists and where this fits
+- [docs/demo.md](docs/demo.md), the local demo and the live AWS run of 2026-10-13
+- [docs/development-plan.md](docs/development-plan.md), the 2026-10-04 review and next milestones
 
 ## Principles
 
@@ -227,6 +261,13 @@ Further reading:
   exists to remove.
 - No telemetry, ever. A tool that reads secret references does not phone home.
 - One obvious way. A contract with options is a suggestion.
+
+## Optional standalone smoke runtime
+
+The local Vault smoke uses this project's own Lima/containerd VM, managed with
+nerdctl. No Kubernetes, Docker daemon or sibling security lab is required.
+The AWS ECS deployment target is unchanged. See the [demo guide](docs/demo.md#standalone-local-vault-on-containerd)
+for startup, actual Vault checks and scoped cleanup.
 
 ## License
 

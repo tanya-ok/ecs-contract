@@ -33,6 +33,7 @@ on:
         type: string
         required: true
       ecs-contract-ref:
+        description: Ref of ecs-contract to check out and run. The default, v0, is a moving tag. Pin this input and the reusable workflow ref to the same full commit SHA.
         type: string
         default: v0
       runs-on:
@@ -70,11 +71,13 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
+          version: "0.11.19"
           enable-cache: false
-      - name: Install ecsc
+      - name: Install ecsc from its lockfile
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/ecsc
         run: |
-          uv venv --quiet "$RUNNER_TEMP/ecsc"
-          uv pip install --quiet --python "$RUNNER_TEMP/ecsc" "./.ecs-contract[aws]"
+          uv sync --quiet --locked --no-dev --extra aws --no-editable --project .ecs-contract
           echo "$RUNNER_TEMP/ecsc/bin" >> "$GITHUB_PATH"
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:

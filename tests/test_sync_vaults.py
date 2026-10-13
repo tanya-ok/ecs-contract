@@ -5,6 +5,7 @@ import json
 import os
 import stat
 import threading
+import typing
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -124,6 +125,20 @@ def test_sync_refuses_non_json_secret(
     assert "something other than a JSON object" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("value", [8080, True, None, {"nested": "x"}, ["x"]])
+def test_sync_refuses_non_string_values(
+    world: World, fake_op: Path, capsys: pytest.CaptureFixture[str], value: object
+) -> None:
+    document = {"PORT_SETTING": value, "KEPT": "keep-me"}
+    world.secretsmanager.put_secret_value(SecretId=CONFIG_SECRET, SecretString=json.dumps(document))
+    assert sync(world) == 1
+    out = capsys.readouterr().out
+    assert "PORT_SETTING holds a non-string JSON value" in out
+    assert "8080" not in out
+    assert "nested" not in out
+    assert secret(world) == document
+
+
 def test_sync_without_vault_keys(world: World, capsys: pytest.CaptureFixture[str]) -> None:
     world.write_contract(secrets={"TLS_CA_BUNDLE": {"parameter": "/shared/certs/bundle.pem"}})
     assert sync(world) == 0
@@ -144,7 +159,15 @@ def test_op_adds_scheme(fake_op: Path) -> None:
 
 
 class _Vault(http.server.BaseHTTPRequestHandler):
+    seen: typing.ClassVar[list[str]] = []
+
     def do_GET(self) -> None:
+        _Vault.seen.append(self.path)
+        if self.path == "/v1/kv/data/orderbook/moved":
+            self.send_response(307)
+            self.send_header("Location", "/v1/kv/data/elsewhere/captured")
+            self.end_headers()
+            return
         if self.headers.get("X-Vault-Token") != "root":
             self.send_response(403)
             self.end_headers()
@@ -188,9 +211,31 @@ def test_hashicorp_http_error(vault_address: str) -> None:
         HashiCorpVault(vault_address, "wrong").read("kv/orderbook/settlement#token")
 
 
+def test_hashicorp_refuses_redirects(vault_address: str) -> None:
+    _Vault.seen.clear()
+    with pytest.raises(VaultError, match=r"HTTP 307 .*redirects are refused"):
+        HashiCorpVault(vault_address, "root").read("kv/orderbook/moved#token")
+    assert _Vault.seen == ["/v1/kv/data/orderbook/moved"]
+
+
 def test_hashicorp_reference_shape() -> None:
     with pytest.raises(VaultError, match="is not <mount>/<path>#<field>"):
         HashiCorpVault("https://vault.example", "t").read("kv/orderbook/settlement")
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "kv/orderbook//settlement#token",
+        "kv/./settlement#token",
+        "kv/orderbook/../../sys/raw#token",
+        "../kv/settlement#token",
+        "kv/orderbook/..#token",
+    ],
+)
+def test_hashicorp_refuses_dot_and_empty_segments(reference: str) -> None:
+    with pytest.raises(VaultError, match=r"empty, \. or \.\. path segment"):
+        HashiCorpVault("https://vault.example", "t").read(reference)
 
 
 def test_hashicorp_refuses_plain_http() -> None:

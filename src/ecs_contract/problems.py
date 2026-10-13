@@ -19,12 +19,12 @@ class Problem:
 
     def github(self) -> str:
         where = f"{self.environment}: {self.key}: {self.message}"
-        return f"::error file={_property(self.file)},title=ecs-contract::{_data(where)}"
+        return f"::error file={_property(self.file)},title=ecs-contract::{escape_data(where)}"
 
 
-def _data(value: str) -> str:
+def escape_data(value: str) -> str:
     return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 def _property(value: str) -> str:
-    return _data(value).replace(":", "%3A").replace(",", "%2C")
+    return escape_data(value).replace(":", "%3A").replace(",", "%2C")

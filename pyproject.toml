@@ -38,6 +38,8 @@ cdk = [
 
 [project.urls]
 Homepage = "https://github.com/tanya-ok/ecs-contract"
+Documentation = "https://tanya-ok.github.io/ecs-contract/"
+Changelog = "https://github.com/tanya-ok/ecs-contract/blob/main/CHANGELOG.md"
 Specification = "https://github.com/tanya-ok/ecs-contract/blob/main/SPEC.md"
 Issues = "https://github.com/tanya-ok/ecs-contract/issues"
 
@@ -63,7 +65,7 @@ packages = ["src/ecs_contract"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src", "tests", "README.md", "SPEC.md", "LICENSE", "NOTICE"]
-exclude = ["tests/denylist.txt"]
+exclude = ["tests/denylist.txt", ".beads/**", ".data/**", "site/**", ".venv-docs/**"]
 
 [tool.ruff]
 line-length = 100
@@ -76,12 +78,14 @@ ignore = ["PLR2004"]
 [tool.ruff.lint.per-file-ignores]
 "src/ecs_contract/cli.py" = ["PLR0911", "PLR0912"]
 "tests/**" = ["S101", "S603", "S607", "PLR0913", "S105", "S106"]
+"scripts/local_vault.py" = ["S310", "S603", "S607", "PLR0915"]
+"scripts/demo_vault.py" = ["S310"]
 "scripts/smoke.py" = ["S310", "S603", "S607", "PLR0915"]
 
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
