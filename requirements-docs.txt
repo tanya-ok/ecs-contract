@@ -1,2 +1,2 @@
 # Documentation tooling only; no application runtime dependency.
-zensical==0.0.68
+zensical==0.0.70
