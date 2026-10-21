@@ -1,0 +1,44 @@
+# Standalone ECS Contract VM. No Kubernetes or shared security lab dependency.
+minimumLimaVersion: 2.2.1
+vmType: vz
+cpus: 2
+memory: 2GiB
+disk: 8GiB
+param:
+  project: ecs-contract
+images:
+  - location: https://cloud.debian.org/images/cloud/trixie/20261001-2618/debian-13-genericcloud-arm64-20261001-2618.qcow2
+    arch: aarch64
+    digest: sha512:d8470b8c6c38fead046c794b5800a5a7b96672d5bcf543cc230ceb0c4b8ace05ed341a0c8928045422243fde26b2f1f2f58e99244c65709ffda2e3d4b674dd5a
+  - location: https://cloud.debian.org/images/cloud/trixie/20261001-2618/debian-13-genericcloud-amd64-20261001-2618.qcow2
+    arch: x86_64
+    digest: sha512:f46f0671a6e5bdec5291ab8972bae2f10e5408c2f64a74078f11efc2f06a436a9d0313ed50e0472542eeabf780e9f7c792ac0a314c6c20507fcd9fd81b468c3d
+mounts: []
+ssh:
+  forwardAgent: false
+  loadDotSSHPubKeys: false
+containerd:
+  system: true
+  user: false
+  archives:
+    - location: https://github.com/containerd/nerdctl/releases/download/v2.4.1/nerdctl-full-2.4.1-linux-amd64.tar.gz
+      arch: x86_64
+      digest: sha256:ff018f11ac2f1354bf7b3aaaca6e0b52d81139c746a89134744d0b7be3a0e62f
+    - location: https://github.com/containerd/nerdctl/releases/download/v2.4.1/nerdctl-full-2.4.1-linux-arm64.tar.gz
+      arch: aarch64
+      digest: sha256:2deffe14625f93866f90a8f265d0f59d6fa476c7dc54b98adb327b1b4613efd4
+portForwards:
+  - guestPort: 18200
+    guestIP: 127.0.0.1
+    hostPort: 18200
+    hostIP: 127.0.0.1
+  - guestPortRange: [1, 65535]
+    proto: any
+    ignore: true
+probes:
+  - script: |
+      #!/bin/sh
+      set -eu
+      # Runtime owner: {{.Param.project}}
+      sudo nerdctl info >/dev/null
+    hint: The standalone rootful containerd runtime must be ready.

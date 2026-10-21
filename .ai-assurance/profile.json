@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "project": "ecs-contract",
+  "scope": "repository-maintenance",
+  "controls": {
+    "access-boundary": {
+      "applicable": true
+    },
+    "data-exposure": {
+      "applicable": true
+    },
+    "untrusted-instructions": {
+      "applicable": true
+    },
+    "consequential-actions": {
+      "applicable": true
+    },
+    "evidence-lineage": {
+      "applicable": true
+    },
+    "bounded-claims": {
+      "applicable": true
+    }
+  }
+}

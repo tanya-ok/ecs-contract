@@ -12,7 +12,7 @@ Surveyed September 2026. What exists, and the part each one leaves open.
 | `terraform-aws-modules/terraform-aws-ecs` | `ignore_task_definition_changes` so the pipeline can own revisions | the two-writer conflict is worked around per module; issues on the topic recur |
 | External Secrets Operator | declarative sync from external stores into Kubernetes secrets | Kubernetes only; nothing equivalent for ECS |
 | AWS Copilot | a manifest with `secrets:` referencing parameters and secrets | reached end of support in June 2026 |
-| CloudFormation drift detection | many resource types | task definitions are not covered, so drift has to be audited from outside |
+| CloudFormation drift detection | includes `AWS::ECS::TaskDefinition` in the [current support table](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resource-import-supported-resources.html), checked 2026-10-04 | does not enforce this project's source declarations or ownership contract before deployment |
 
 ## Where this fits
 

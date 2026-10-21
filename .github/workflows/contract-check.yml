@@ -20,7 +20,7 @@ on:
         type: string
         default: ""
       ecs-contract-ref:
-        description: Ref of ecs-contract to run. Pin a commit SHA for production callers.
+        description: Ref of ecs-contract to check out and run. The default, v0, is a moving tag. Pin this input and the reusable workflow ref to the same full commit SHA.
         type: string
         default: v0
       runs-on:

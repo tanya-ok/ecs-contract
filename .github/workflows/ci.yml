@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -21,6 +22,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.19"
       - run: uv sync --locked
       - run: uv run ruff check --output-format github
       - run: uv run ruff format --check
@@ -39,6 +42,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.19"
       - run: uv sync --locked --python ${{ matrix.python }}
       - run: uv run --python ${{ matrix.python }} pytest
 
@@ -50,6 +55,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.19"
       - run: uv build
       - name: Execute the built wheel, not only the source
         run: |
@@ -58,10 +65,11 @@ jobs:
           uvx --from "$wheel" ecsc check \
             --parameters examples/orderbook/parameters.json \
             --secrets examples/orderbook/secrets.json
-      - name: Install with the aws extra, as the deploy workflow does
+      - name: Install from the lockfile with the aws extra, as the deploy workflow does
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/ecsc
         run: |
-          uv venv --quiet "$RUNNER_TEMP/ecsc"
-          uv pip install --quiet --python "$RUNNER_TEMP/ecsc" ".[aws]"
+          uv sync --quiet --locked --no-dev --extra aws --no-editable --project .
           "$RUNNER_TEMP/ecsc/bin/ecsc" render --help > /dev/null
           "$RUNNER_TEMP/ecsc/bin/python" -c "import boto3, ecs_contract.sources"
       - name: Scan built artifacts for identifiers

@@ -70,8 +70,9 @@ def describe_live_revision(
 class ServiceFromLiveRevision(Construct):
     """An `AWS::ECS::Service` set to the revision it runs now, with no task definition resource.
 
-    The template carries the live ARN as a literal, so an infrastructure deploy leaves the
-    application's content alone. The desired count is never set, so autoscaling keeps control.
+    The template carries the synthesis-time ARN as a literal. Serialize synthesis and deploy
+    with application writers; a saved template can otherwise revert a later application revision.
+    The desired count is never set, so autoscaling keeps control.
 
     `initial_task_definition` is used only when the service does not exist yet, for its first
     creation. Once the service exists it is ignored.

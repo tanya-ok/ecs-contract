@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "version": "0.1.0",
+  "controls": [
+    {
+      "id": "access-boundary",
+      "area": "security",
+      "requirement": "Access is limited to explicitly authorized identities, tools and resources."
+    },
+    {
+      "id": "data-exposure",
+      "area": "security",
+      "requirement": "Reports and tool boundaries avoid disclosing secrets or sensitive source data."
+    },
+    {
+      "id": "untrusted-instructions",
+      "area": "ai-safety",
+      "requirement": "Retrieved content, evidence and model output cannot grant execution authority."
+    },
+    {
+      "id": "consequential-actions",
+      "area": "ai-safety",
+      "requirement": "Consequential actions remain within explicit human authorization and scope."
+    },
+    {
+      "id": "evidence-lineage",
+      "area": "compliance-evidence",
+      "requirement": "Claims identify evidence origin, capture time, source revision, method and scope."
+    },
+    {
+      "id": "bounded-claims",
+      "area": "compliance-evidence",
+      "requirement": "Claims distinguish observed outcomes, uncertainty and applicability without asserting certification."
+    }
+  ]
+}

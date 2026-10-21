@@ -9,3 +9,7 @@ build/
 .ruff_cache/
 .coverage
 tests/denylist.txt
+/.venv-docs/
+/site/
+/.cache/
+AGENTS.local.md

@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "version": "0.1.0",
+  "sha256": "6973791bbc9bcd8a624e91c12581e83fadead87856c88152280ed429e6c7ea61",
+  "files": {
+    "AGENTS.md": "9d3564ebe71001bf6cdb684a8d59a1cc27742e7ec68867564083ab9b72fec025",
+    "assurance.py": "b387a03edaa4275671a1b9631e54e78d7cdd316143d2cce86c840a575b75b862",
+    "controls.json": "b1d7546349a0d6f58e094e81da73215ddcd7815dbe53a3b4f3beee5346169aed",
+    "skills/assurance-review/SKILL.md": "0bcab74a08911cbd79f00da7f10942e1752e3391f9bb559e66993f863e49400c"
+  }
+}

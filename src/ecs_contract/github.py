@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from pathlib import Path
 
 
@@ -20,10 +21,17 @@ def mask(value: str) -> None:
 
 
 def set_output(name: str, value: str) -> None:
+    """Multiline form with a random delimiter: a value cannot end the block or add outputs."""
     target = os.environ.get("GITHUB_OUTPUT")
-    if target:
-        with Path(target).open("a", encoding="utf-8") as handle:
-            handle.write(f"{name}={value}\n")
+    if not target:
+        return
+    if not name or any(c in name for c in "\r\n<="):
+        raise ValueError("invalid step output name")
+    delimiter = f"ghadelimiter_{secrets.token_hex(16)}"
+    if delimiter in value:
+        raise ValueError("step output value contains the delimiter")
+    with Path(target).open("a", encoding="utf-8") as handle:
+        handle.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
 def summary(markdown: str) -> None:

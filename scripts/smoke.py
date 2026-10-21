@@ -4,7 +4,9 @@ Run from the repository root against an account you own, never a shared or compa
 
     AWS_PROFILE=<personal> uv run python scripts/smoke.py [--keep]
 
-Needs docker for a local HashiCorp dev vault. Creates resources named ecsc-smoke-<run> in
+Needs its standalone Lima ecs-contract VM with containerd for a local
+HashiCorp dev Vault. Start it through the documented lab command first.
+Creates resources named ecsc-smoke-<run> in
 eu-west-1 and deletes them at the end. With --keep they stay; remove them later with
 ECSC_SMOKE_NAME=ecsc-smoke-<run> and --teardown. Cost is a few cents. Each run gets its own
 names: deleted secrets and log groups keep their names busy, or their old events, for a while.
@@ -23,8 +25,10 @@ import time
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import boto3
+from local_vault import LocalVault
 
 REGION = "eu-west-1"
 NAME = os.environ.get("ECSC_SMOKE_NAME") or f"ecsc-smoke-{secrets.token_hex(3)}"
@@ -34,9 +38,12 @@ SERVICE = "app"
 CONTAINER = "app"
 IMAGE = "public.ecr.aws/docker/library/busybox"
 VAULT_PORT = 18200
-VAULT_IMAGE = "hashicorp/vault:1.18"
-VAULT_CONTAINER = f"{NAME}-vault"
-TAGS = [{"Key": "purpose", "Value": NAME}]
+VAULT_IMAGE = (
+    "docker.io/hashicorp/vault@sha256:"
+    "750bb37c1638fa194ab37053a81618c61bb0491ddec6fccac87c07a8e6cd8166"
+)
+vault_runtime = LocalVault(NAME, VAULT_PORT, VAULT_IMAGE)
+TAGS: list[Any] = [{"Key": "purpose", "Value": NAME}]
 
 DB_SECRET = f"{NAME}/{ENV}/db"
 CONFIG_SECRET = f"{NAME}/{ENV}/config"
@@ -158,31 +165,7 @@ def write_contract(log_level: str) -> None:
 
 
 def vault_up() -> None:
-    subprocess.run(["docker", "rm", "-f", VAULT_CONTAINER], capture_output=True, check=False)
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "-d",
-            "--rm",
-            "--name",
-            VAULT_CONTAINER,
-            "--cap-add=IPC_LOCK",
-            "-e",
-            f"VAULT_DEV_ROOT_TOKEN_ID={values['vault_token']}",
-            "-p",
-            f"127.0.0.1:{VAULT_PORT}:8200",
-            VAULT_IMAGE,
-        ],
-        check=True,
-        capture_output=True,
-    )
-    for _ in range(30):
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:{VAULT_PORT}/v1/sys/health", timeout=2)
-            break
-        except OSError:
-            time.sleep(1)
+    vault_runtime.start(values["vault_token"])
     body = json.dumps({"data": {"token": values["settlement"]}}).encode()
     request = urllib.request.Request(
         f"http://127.0.0.1:{VAULT_PORT}/v1/secret/data/{NAME}/settlement",
@@ -190,7 +173,7 @@ def vault_up() -> None:
         headers={"X-Vault-Token": values["vault_token"], "Content-Type": "application/json"},
         method="POST",
     )
-    urllib.request.urlopen(request, timeout=5)
+    urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=5)
     print("vault: dev server up, synthetic field written")
 
 
@@ -306,7 +289,10 @@ def live_arn() -> str:
 
 def config_document() -> dict[str, str] | None:
     try:
-        return json.loads(sm.get_secret_value(SecretId=CONFIG_SECRET)["SecretString"])
+        document: dict[str, str] = json.loads(
+            sm.get_secret_value(SecretId=CONFIG_SECRET)["SecretString"]
+        )
+        return document
     except sm.exceptions.ResourceNotFoundException:
         return None
 
@@ -544,7 +530,7 @@ def teardown() -> None:
             call()
         except quiet as e:
             print(f"  {label}: {type(e).__name__}")
-    subprocess.run(["docker", "rm", "-f", VAULT_CONTAINER], capture_output=True, check=False)
+    vault_runtime.stop(recover=True)
     print("teardown: done")
 
 
@@ -556,7 +542,7 @@ if __name__ == "__main__":
     try:
         run()
     except Exception as error:
-        step(f"smoke aborted: {type(error).__name__}: {str(error)[:200]}", False)
+        step(f"smoke aborted: {type(error).__name__}", False)
     finally:
         if "--keep" not in sys.argv:
             teardown()

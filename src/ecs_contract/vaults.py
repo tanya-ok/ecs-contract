@@ -9,9 +9,24 @@ import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Protocol
+from typing import Any, Protocol, override
 
 _LOOPBACK = {"localhost", "127.0.0.1", "::1"}
+
+
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    # A redirect would replay X-Vault-Token to wherever the Location header points.
+    @override
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
 
 
 class VaultError(Exception):
@@ -73,6 +88,7 @@ class HashiCorpVault:
         self.token = token
         self.namespace = namespace
         self.timeout = timeout
+        self.opener = urllib.request.build_opener(_NoRedirects())
 
     @classmethod
     def from_environment(cls) -> HashiCorpVault:
@@ -87,6 +103,8 @@ class HashiCorpVault:
         mount, _, secret_path = path.strip("/").partition("/")
         if not field or not mount or not secret_path:
             raise VaultError(f"reference {reference!r} is not <mount>/<path>#<field>")
+        if any(segment in ("", ".", "..") for segment in path.strip("/").split("/")):
+            raise VaultError(f"reference {reference!r} has an empty, . or .. path segment")
         url = (
             f"{self.address}/v1/{urllib.parse.quote(mount)}/data/{urllib.parse.quote(secret_path)}"
         )
@@ -95,9 +113,13 @@ class HashiCorpVault:
             headers["X-Vault-Namespace"] = self.namespace
         request = urllib.request.Request(url, headers=headers)  # noqa: S310 - scheme checked in __init__
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+            with self.opener.open(request, timeout=self.timeout) as response:
                 body = json.load(response)
         except urllib.error.HTTPError as error:
+            if 300 <= error.code < 400:
+                raise VaultError(
+                    f"vault answered HTTP {error.code} for {path}; redirects are refused"
+                ) from error
             raise VaultError(f"vault returned HTTP {error.code} for {path}") from error
         except (urllib.error.URLError, TimeoutError, ValueError) as error:
             raise VaultError(f"cannot read {path} from vault: {type(error).__name__}") from error

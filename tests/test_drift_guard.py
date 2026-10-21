@@ -61,6 +61,19 @@ def test_drift_sees_a_hand_edit(world: World, capsys: pytest.CaptureFixture[str]
     assert "debug" not in out
 
 
+def test_drift_github_annotation_is_escaped(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    task = rendered(world, capsys)
+    app = next(c for c in task["containerDefinitions"] if c["name"] == "app")
+    app["environment"].append({"name": "X%0A\n::warning::forged", "value": "x"})
+    world.deploy(task)
+    assert drift(world, "--format", "github") == 1
+    lines = capsys.readouterr().out.splitlines()
+    assert not any(line.startswith("::warning") for line in lines)
+    assert any("X%250A%0A::warning::forged" in line for line in lines), lines
+
+
 def test_drift_image(world: World, capsys: pytest.CaptureFixture[str]) -> None:
     world.deploy(rendered(world, capsys))
     assert drift(world, "--image-tag", "2.0.0") == 1

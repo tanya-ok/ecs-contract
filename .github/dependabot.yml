@@ -18,3 +18,14 @@ updates:
     groups:
       dev:
         patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /
+    allow:
+      - dependency-name: zensical
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      docs:
+        patterns: ["*"]
