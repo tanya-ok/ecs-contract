@@ -117,7 +117,7 @@ jobs:
           ref: ${{ inputs.ecs-contract-ref }}
           path: .ecs-contract
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.19"
           enable-cache: false
@@ -176,7 +176,7 @@ jobs:
           ecsc sync "${args[@]}"
       - name: Register, update the service, wait
         id: deploy
-        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
+        uses: aws-actions/amazon-ecs-deploy-task-definition@a00d4d57ac0de1a99b39fe469f3d898d38717c2b # v2.6.4
         with:
           task-definition: ${{ runner.temp }}/task-definition.json
           cluster: ${{ inputs.cluster }}
